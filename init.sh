@@ -36,7 +36,7 @@ else
   echo_ -o 31 "  --> No support for auto_suspend"
 fi
 
-if ! systemctl list-unit-files | grep -q smbd; then
+if ! systemctl list-unit-files | grep -q smb; then
   echo_ -o 31 "  --> No support for samba"
 else
   echo_ -o 32 "  --> samba is supported"
