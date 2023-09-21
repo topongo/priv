@@ -91,14 +91,14 @@ if ! sudo mkfs.ext4 /dev/mapper/private_space; then
 fi
 echo_ -o 32 "  --> OK"
 
-echo_ "Setup completed successfully! Closing..."
-sudo cryptsetup close private_space
-echo_ -o 32 "  --> OK"
-
 echo_ -n "Creating spawn script..."
 mkdir -p $(dirname $PRIVATE_SPACE_SPAWN)
 cat spawn-private-partial > $PRIVATE_SPACE_SPAWN
 echo -e "$PRIVATE_SPACE_PATH/mount.sh\nfi" >> $PRIVATE_SPACE_SPAWN
 chmod +x $PRIVATE_SPACE_SPAWN
 echo_ -co 32 " OK"
+
+echo_ "Setup completed successfully! Closing..."
+sudo cryptsetup close private_space
+echo_ -o 32 "  --> OK"
 
