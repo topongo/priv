@@ -1,104 +1,120 @@
 #!/bin/zsh
 
-PRIVATE_SPACE_PATH=$(realpath $(dirname $0))
-cd $PRIVATE_SPACE_PATH
+PREFIX=/usr/lib/priv
+source $PREFIX/colors.sh
+source $PREFIX/conf.sh
 
-if ! [ -f configs.sh ]; then
-  cat configs.sh.default > configs.sh
-  echo "PRIVATE_SPACE_PATH=$PRIVATE_SPACE_PATH" >> configs.sh
-  echo "PRIVATE_SPACE_USER=$USER" >> configs.sh
+if [ $UID != 0 ]; then
+  red Root access needed.
+  exit 1
 fi
 
-source configs.sh
-source colors.sh
-
-echo_ Checking cryptsetupt support...
+blue Checking cryptsetupt support...
 if cryptsetup -v > /dev/null 2>&1; then
-  echo_ -co 31 "  --> Failed"
-  echo_ -o 31 "No support for luks. Cannot continue"
+  redc "  --> Failed"
+  red "No support for luks. Cannot continue"
   exit 1
 else
-  echo_ -o 32 "  --> luks is supported"
+  green "  --> luks is supported"
 fi
 
-if ! systemctl list-unit-files | grep -q nfs-server; then
-  echo_ -o 31 "  --> No support for nfs"
+bluen "Creating mountpoints..."
+if mkdir -p $PRIV_MOUNT; then
+    greenc " OK"
 else
-  echo_ -o 32 "  --> nfs is supported"
-  echo_ -o 32 "  --> creating nfs mountpoint"
-  sudo mkdir -p /srv/nfs/private
-  echo "PRIVATE_SPACE_NFS=true" >> configs.sh
+    redc " FAILED"
+    exit 1
 fi
 
-if [ -d /var/auto_suspend ]; then
-  echo "PRIVATE_SPACE_AUTO_SUSPEND=true" >> configs.sh
+blue "Checking for key..."
+if [ -e $PRIV_KEY_FILE ]; then
+    bluen "Key at $PRIV_KEY_FILE already exists. Continue with already existing key? "
+    if ! read -q; then
+	echo
+	red "WARNING: file at $PRIV_KEY_FILE already exists!"
+	red "Cowardly refusing to overwrite key file."
+	yellow "Please delete $PRIV_KEY_FILE or change PRIV_KEY_FILE options in /etc/priv.conf before continuing"
+	exit 1
+    else
+	echo
+    fi
 else
-  echo_ -o 31 "  --> No support for auto_suspend"
+    echo
+    bluen "Generating key..."
+    sudo dd if=/dev/urandom of=$PRIV_KEY_FILE bs=1K count=4 2> /dev/null
+    sudo chmod 400 $PRIV_KEY_FILE
+    greenc " OK"
 fi
 
-if ! systemctl list-unit-files | grep -q smb; then
-  echo_ -o 31 "  --> No support for samba"
-else
-  echo_ -o 32 "  --> samba is supported"
-  echo "PRIVATE_SPACE_SAMBA=true" >> configs.sh
+if ! mkdir -p "$(dirname $PRIV_STORAGE)"; then
+    red "Failed to create $(dirname $PRIV_STORAGE)"
+    exit 1
 fi
 
-echo_ -n "Creating mountpoints..."
-mkdir -p mount
-echo_ -co 32 " OK"
+while ! [[ $size =~ ^[0-9]+$ ]]; do 
+    bluen "Creating storage image. Insert the size of raw storage (in MBs) "
+    read size
+done
 
-echo_ -n "Creating storage image. Insert the size of raw storage (in MBs) "
-read size
-echo_ "We are trying to execute this potentially destructive command!"
-echo_ -o 31 "     sudo truncate --size=$size storage.img"
-echo_ -n "Proceed? (y/N) "
+blue "We are trying to execute this potentially destructive command!"
+red    "    sudo truncate --size=${size}M $PRIV_STORAGE"
+if [ -e $PRIV_STORAGE ]; then
+    yellow "    WARNING: $PRIV_STORAGE already exists!"
+fi
+bluen "Proceed? (y/N) "
 if read -q; then
   echo
-  if ! sudo truncate --size=${size}MB storage.img; then
-    echo_ -o 31 "  --> FAILED"
+  if ! sudo truncate --size=${size}M $PRIV_STORAGE; then
+    red "  --> FAILED"
     exit 1
   fi
-  sudo chmod 700 storage.img
+  sudo chmod 700 $PRIV_STORAGE
 else
-  echo_ -o 31 "  --> Aborted"
+  red "  --> Aborted"
   exit 1
 fi
-echo_ -o 32 " --> OK"
+green "  --> OK"
 
-echo_ -n "Generating key-file..."
-sudo dd if=/dev/urandom of=$PRIVATE_SPACE_KEY bs=1K count=4 2> /dev/null
-sudo chmod 400 $PRIVATE_SPACE_KEY
-echo_ -co 32 " OK"
-
-echo_ "Formatting storage.img into luks filesystem..."
-if ! sudo cryptsetup luksFormat -q storage.img $PRIVATE_SPACE_KEY; then
-  echo_ -o 31 "  --> FAILURE"
+blue "Formatting $PRIV_STORAGE into luks filesystem..."
+if ! sudo cryptsetup luksFormat -q $PRIV_STORAGE $PRIV_KEY_FILE; then
+  red "  --> FAILURE"
   exit 1
 fi
-echo_ -o 32 "  --> OK"
+green "  --> OK"
 
-echo_ "Opening image..."
-if ! sudo cryptsetup open --key-file $PRIVATE_SPACE_KEY storage.img private_space; then
-  echo_ -o 31 "  --> FAILURE"
+if [ -e /dev/mapper/$PRIV_DEVICE ]; then
+    yellow "/dev/mapper/$PRIV_DEVICE: file exists"
+    if dmsetup ls --target crypt | grep -q $PRIV_DEVICE; then
+	bluen "mapping is a dm-crypt device, close it? "
+	if read -q; then
+	    echo
+	    cryptsetup close $PRIV_DEVICE 
+	else
+	    echo
+	    red "cannot continue without closing /dev/mapper/$PRIV_DEVICE"
+	    exit 1
+	fi
+    else
+	red "mapping is not dm-crypt: cannot continue"
+	exit 1
+    fi
+fi
+
+blue "Opening image..."
+if ! sudo cryptsetup open --key-file $PRIV_KEY_FILE $PRIV_STORAGE $PRIV_DEVICE; then
+  red "  --> FAILURE"
   exit 1
 fi
-echo_ -o 32 "  --> OK"
+green "  --> OK"
 
-echo_ "Formatting image ext4..."
-if ! sudo mkfs.ext4 /dev/mapper/private_space; then
-  echo_ -o 31 "  --> FAILURE"
+blue "Formatting image ext4..."
+if ! sudo mkfs.ext4 -F /dev/mapper/$PRIV_DEVICE; then
+  red "  --> FAILURE"
   exit 1
 fi
-echo_ -o 32 "  --> OK"
+green "  --> OK"
 
-echo_ -n "Creating spawn script..."
-mkdir -p $(dirname $PRIVATE_SPACE_SPAWN)
-cat spawn-private-partial > $PRIVATE_SPACE_SPAWN
-echo -e "$PRIVATE_SPACE_PATH/mount.sh\nfi" >> $PRIVATE_SPACE_SPAWN
-chmod +x $PRIVATE_SPACE_SPAWN
-echo_ -co 32 " OK"
-
-echo_ "Setup completed successfully! Closing..."
-sudo cryptsetup close private_space
-echo_ -o 32 "  --> OK"
+blue "Setup completed successfully! Closing mapping..."
+sudo cryptsetup close $PRIV_DEVICE 
+green "  --> OK"
 

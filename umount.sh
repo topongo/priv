@@ -1,12 +1,11 @@
 #!/bin/zsh
 
-cd $(dirname $0)
-source colors.sh
-source configs.sh
-[ -z $TELEGRAM_TOKEN ] || export PRIVATE_SPACE_TELEGRAM=true
+PREFIX=/usr/lib/priv
+source $PREFIX/colors.sh
+source $PREFIX/conf.sh
 
 if [ $UID != 0 ]; then
-  echo_ Root access needed.
+  blue Root access needed.
   exit 1
 fi
 
@@ -17,21 +16,21 @@ else
 fi
 
 function kill_processes() {
-  if ! [ -z $PRIVATE_SPACE_SMB ]; then
+  if ! [ -z $PRIV_SMB ]; then
     processes=$(lsof /srv/nfs/private | grep -v PID | awk '{print $2}' | paste -s -d' ')
-    if ! [ -z "$processes" ]; then echo_ -n List of hanging processes: ; echo_ -co 31 " $processes"; fi
+    if ! [ -z "$processes" ]; then bluen List of hanging processes: ; yellowc " $processes"; fi
     for p in $processes; do
-      if ! [ -z $PRIVATE_SPACE_SMB ] && [ "$(ps -p $p -o comm= 2> /dev/null)" = "smbd" ]; then
-        echo_ -n The hanging process is smb daemon. Stopping service...
+      if [ "$(ps -p $p -o comm= 2> /dev/null)" = "smbd" ]; then
+        bluen The hanging process is smb daemon. Stopping service...
         systemctl stop smb
-        echo_ -c Done
+        bluec Done
         if eval "kill -0 $p" 2> /dev/null; then
-          echo_ -o 31 "Process smbd is resisive. Killing it. (this is an error)"
+          red "Process smbd is resisive. Killing it. (this is an error)"
           eval "kill -9 $p"
         fi
       else
         eval "kill -9 $p"
-        echo_ "Killed process $p"
+        bluen "Killed process $p"
       fi
     done
   else
@@ -40,43 +39,45 @@ function kill_processes() {
 }
 
 function actual_umount(){
-  if ! [ -z $PRIVATE_SPACE_AUTO_SUSPEND ]; then
+  if ! [ -z $PRIV_AUTOSUSPEND ]; then
     echo x > /var/auto_suspend/override_c
-    echo_ "Override cancelled for auto_suspend"
+    blue "Override cancelled for auto_suspend"
   fi
 
-  if ! [ -z $PRIVATE_SPACE_NFS ]; then
+  if ! [ -z $PRIV_NFS ]; then
     # check if nfs binding is actually mounted
     if mountpoint /srv/nfs/private > /dev/null; then
       # try to umount nfs binding
       systemctl stop nfs-server
       if ! umount -f /srv/nfs/private > /dev/null; then
-        echo_ /srv/nfs/private is busy, trying to kill processes...
+        blue /srv/nfs/private is busy, trying to kill processes...
         kill_processes
 
         # retry after killing processes
         if ! umount -f /srv/nfs/private > /dev/null; then
+          curl https://ntfy.sh/$PRIV_NTFY -H 'Priority: high' -d "Failed to umount priv nfs, need user intervention"	  
           systemctl start nfs-server
           exit 1
         else
-          echo_ Successfully killed and unmounted /srv/nfs/private
+          blue Successfully killed and unmounted /srv/nfs/private
         fi
       fi
+      # restart nfs
       systemctl start nfs-server
     fi
   fi
 
-  if mountpoint mount > /dev/null; then
+  if mountpoint $PRIV_MOUNT > /dev/null; then
     # try to umount actual data
-    if ! umount -f mount > /dev/null; then
-      echo_ Private space is busy, trying to kill processes...
+    if ! umount -f $PRIV_MOUNT > /dev/null; then
+      blue Private space is busy, trying to kill processes...
       kill_processes
 
       # retry after killing processes
-      while ! umount -f mount > /dev/null; do
+      while ! umount -f $PRIV_MOUNT > /dev/null; do
         # notify user
-        if ! [ -z $PRIVATE_SPACE_TELEGRAM ]; then
-          echo_ "Failed to forcibly umount private space, need some assistance..." | /home/$PRIVATE_SPACE_USER/bin/telegram-notify
+        if ! [ -z $PRIV_NTFY ]; then
+          curl https://ntfy.sh/$PRIV_NTFY -H 'Priority: high' -d "Failed to umount priv, need user intervention"
           break
         else
           sleep 60
@@ -85,32 +86,32 @@ function actual_umount(){
     fi
   fi
 
-  if [ -e /dev/mapper/private_space ]; then
-    if ! cryptsetup close private_space; then
-      echo_ "Failed to close luks private partition, need some assistance..." | sudo -u $PRIVATE_SPACE_USER /home/$PRIVATE_SPACE_USER/bin/telegram-notify
+  if [ -e /dev/mapper/$PRIV_DEVICE ]; then
+    if ! cryptsetup close $PRIV_DEVICE; then
+      curl https://ntfy.sh/$PRIV_NTFY -H 'Priority: high' -d "Failed to close priv, need user intervention"
     fi
   fi
 
-  if ! [ -z $PRIVATE_SPACE_SMB ]; then 
+  if ! [ -z $PRIV_SMB ]; then 
     systemctl start smb
   fi
 }
 
 function ctrl_c(){
   echo
-  echo_ Interrupt signal received, unmounting now.
+  blue Interrupt signal received, unmounting now.
   actual_umount
-  echo_ Done
+  blue Done
   exit 0
 }
 
 trap ctrl_c INT
-if ! [ -z $PRIVATE_SPACE_AUTO_SUSPEND ]; then
-  echo_ "Override autosuspend for requested timeout"
+if ! [ -z $PRIV_AUTOSUSPEND ]; then
+  blue "Override autosuspend for requested timeout"
   echo $timeout > /var/auto_suspend/override
 fi
 
-echo_ "Sleeping for $timeout seconds... (press ^C to unmount now)"
+blue "Sleeping for $timeout seconds... (press ^C to unmount now)"
 sleep $timeout
 
 actual_umount
@@ -118,4 +119,4 @@ actual_umount
 
 
 
-echo_ -o 32 Done
+green Done
