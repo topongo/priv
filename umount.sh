@@ -73,6 +73,8 @@ function actual_umount(){
   if ! [ -z $PRIV_SMB ]; then 
     systemctl start smb
   fi
+
+  green umount successfull!
 }
 
 function ctrl_c(){

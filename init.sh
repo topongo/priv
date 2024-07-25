@@ -106,8 +106,9 @@ if ! sudo cryptsetup open --key-file $PRIV_KEY_FILE $PRIV_STORAGE $PRIV_DEVICE; 
 fi
 green "  --> OK"
 
-blue "Formatting image ext4..."
-if ! sudo mkfs.ext4 -F /dev/mapper/$PRIV_DEVICE; then
+blue "Formatting image using format command $PRIV_FORMAT..."
+sleep .1
+if ! eval "$PRIV_FORMAT /dev/mapper/$PRIV_DEVICE"; then
   red "  --> FAILURE"
   exit 1
 fi

@@ -10,6 +10,7 @@ else
     [ -z $PRIV_USER ]        && PRIV_USER=1000
     [ -z $PRIV_MOUNT ]       && ERR="${ERR}PRIV_MOUNT "
     [ -z $PRIV_DEVICE ]      && PRIV_DEVICE=priv
+    [ -z $PRIV_FORMAT ]      && PRIV_FORMAT="mkfs.ext4 -F"
     if [ -z $PRIV_NFS ] || [[ $PRIV_NFS = false ]]; then
 	PRIV_NFS=
     fi

@@ -21,6 +21,7 @@ function kill_processes() {
   else
     processes="$(lsof $PRIV_MOUNT 2> /dev/null | grep -v PID | awk '{print $2}')"
     if ! [[ -z $processes ]]; then
+      yellow Killing processes: $processes
       echo "$processes" | xargs kill -9
     fi
   fi
