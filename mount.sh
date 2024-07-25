@@ -56,6 +56,7 @@ fi
 blue Starting umount daemon
 /usr/lib/priv/umount.sh $1 &
 UMOUNT_PID=$!
+echo $UMOUNT_PID > /run/privu.pid
 
 function k(){
   echo
@@ -68,7 +69,9 @@ function ctrl_c(){
   red Received SIGINT
   blue "Waiting for umount daemon to exit... (send ^C to kill chid)"
   trap k INT
-  tail --pid=$UMOUNT_PID -f /dev/null
+  while kill -0 $UMOUNT_PID 2> /dev/null; do
+      sleep 1;
+  done
   blue "Umount daemon exited, exiting."
   sleep 3
   exit 0
@@ -88,7 +91,9 @@ else
   yellow "Not in a screen session, remaining attached."
 fi
 
-tail --pid=$UMOUNT_PID -f /dev/null
+while kill -0 $UMOUNT_PID 2> /dev/null; do
+    sleep 1
+done
 
 blue Umount daemon exited, exiting.
 sleep 3

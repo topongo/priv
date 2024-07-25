@@ -10,7 +10,8 @@ fi
 
 [[ -z $PREFIX ]] && PREFIX=/usr
 
-install -Dm 755 init.sh grow.sh mount.sh umount.sh colors.sh conf.sh --target-directory $PREFIX/lib/priv
+install -Dm 644 colors.sh conf.sh kill.sh --target-directory $PREFIX/lib/priv
+install -Dm 755 init.sh grow.sh mount.sh umount.sh close.sh --target-directory $PREFIX/lib/priv
 install -Dm 755 priv.sh $PREFIX/bin/priv
 
 if [ -z PRIV_INSTALL_SKIP_CONF ] && ! [[ -e /etc/priv.conf ]]; then

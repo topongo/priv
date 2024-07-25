@@ -39,7 +39,6 @@ if [ -e $PRIV_KEY_FILE ]; then
 	echo
     fi
 else
-    echo
     bluen "Generating key..."
     sudo dd if=/dev/urandom of=$PRIV_KEY_FILE bs=1K count=4 2> /dev/null
     sudo chmod 400 $PRIV_KEY_FILE

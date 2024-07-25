@@ -9,10 +9,11 @@ function usage() {
     echo "Usage: priv [OPTIONS] COMMAND"
     echo
     echo "Available commands:"
-    echo "	init	initializes a new private space"
-    echo "	grow	grows the current private space"
-    echo "	mount	mounts the private space (unmanaged)"
-    echo "	spawn	spawns the private space (managed, interactive)"
+    echo "    init    initializes a new private space"
+    echo "    grow    grows the current private space"
+    echo "    close   cleans the private space context: umounts and closes mapping"
+    echo "    mount   mounts the private space (unmanaged)"
+    echo "    spawn   spawns the private space (managed, interactive)"
     echo
     echo "Available options:"
     echo
@@ -33,6 +34,9 @@ case $OPERAND in
 	;;
     mount)
 	$PREFIX/mount.sh ${@:2}
+	;;
+    close)
+	$PREFIX/close.sh ${@:2}
 	;;
     spawn)
 	if screen -list | grep -E '.priv\s' > /dev/null 2>&1; then

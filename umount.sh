@@ -3,6 +3,7 @@
 PREFIX=/usr/lib/priv
 source $PREFIX/colors.sh
 source $PREFIX/conf.sh
+source $PREFIX/kill.sh
 
 if [ $UID != 0 ]; then
   blue Root access needed.
@@ -14,29 +15,6 @@ if ! [[ "$1" =~ '^[0-9]+$' ]] ; then
 else
   timeout=$(($1 * 60))
 fi
-
-function kill_processes() {
-  if ! [ -z $PRIV_SMB ]; then
-    processes=$(lsof $PRIV_MOUNT | grep -v PID | awk '{print $2}' | paste -s -d' ')
-    if ! [ -z "$processes" ]; then bluen List of hanging processes: ; yellowc " $processes"; fi
-    for p in $processes; do
-      if [ "$(ps -p $p -o comm= 2> /dev/null)" = "smbd" ]; then
-        bluen The hanging process is smb daemon. Stopping service...
-        systemctl stop smb
-        bluec Done
-        if eval "kill -0 $p" 2> /dev/null; then
-          red "Process smbd is resisive. Killing it. (this is an error)"
-          eval "kill -9 $p"
-        fi
-      else
-        eval "kill -9 $p"
-        bluen "Killed process $p"
-      fi
-    done
-  else
-   lsof mount | grep -v PID | awk '{print $2}' | xargs kill -9
-  fi
-}
 
 function actual_umount(){
   if ! [ -z $PRIV_AUTOSUSPEND ]; then
@@ -111,12 +89,11 @@ if ! [ -z $PRIV_AUTOSUSPEND ]; then
   echo $timeout > /var/auto_suspend/override
 fi
 
-blue "Sleeping for $timeout seconds... (press ^C to unmount now)"
-sleep $timeout
+timeout=$(($(date +%s) + timeout))
+while [[ $(date +%s) -lt $timeout ]]; do
+    sleep 1
+done
 
 actual_umount
-
-
-
 
 green Done
