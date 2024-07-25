@@ -7,12 +7,12 @@ if [ $UID != 0 ]; then
   exit 1
 fi
 
-PREFIX=/usr/lib/priv
 
-install -dm 755 $PREFIX
-install -m 755 init.sh grow.sh mount.sh umount.sh colors.sh conf.sh --target-directory $PREFIX
-install -m 755 priv.sh /usr/bin/priv
+[[ -z $PREFIX ]] && PREFIX=/usr
 
-if ! [[ -e /etc/priv.conf ]]; then
+install -Dm 755 init.sh grow.sh mount.sh umount.sh colors.sh conf.sh --target-directory $PREFIX/lib/priv
+install -Dm 755 priv.sh $PREFIX/bin/priv
+
+if [ -z PRIV_INSTALL_SKIP_CONF ] && ! [[ -e /etc/priv.conf ]]; then
     install -m 755 priv.conf /etc/priv.conf
 fi
