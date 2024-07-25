@@ -40,9 +40,9 @@ else
 fi
 	
 if ! [ -z $PRIV_NFS ]; then
-    if ! mountpoint /srv/nfs/private > /dev/null; then
+    if ! mountpoint $PRIV_NFS > /dev/null; then
       bluen "NFS binding not mounted, mounting now... "
-      if mount -B mount /srv/nfs/private; then
+      if mount -B $PRIV_MOUNT $PRIV_NFS; then
 	greenc "OK!"
       else
 	redc "FAILED!"
@@ -54,7 +54,7 @@ if ! [ -z $PRIV_NFS ]; then
 fi
 
 blue Starting umount daemon
-./umount.sh $1 &
+/usr/lib/priv/umount.sh $1 &
 UMOUNT_PID=$!
 
 function k(){

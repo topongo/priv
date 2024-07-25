@@ -17,7 +17,7 @@ fi
 
 function kill_processes() {
   if ! [ -z $PRIV_SMB ]; then
-    processes=$(lsof /srv/nfs/private | grep -v PID | awk '{print $2}' | paste -s -d' ')
+    processes=$(lsof $PRIV_MOUNT | grep -v PID | awk '{print $2}' | paste -s -d' ')
     if ! [ -z "$processes" ]; then bluen List of hanging processes: ; yellowc " $processes"; fi
     for p in $processes; do
       if [ "$(ps -p $p -o comm= 2> /dev/null)" = "smbd" ]; then
@@ -46,20 +46,20 @@ function actual_umount(){
 
   if ! [ -z $PRIV_NFS ]; then
     # check if nfs binding is actually mounted
-    if mountpoint /srv/nfs/private > /dev/null; then
+    if mountpoint $PRIV_NFS > /dev/null; then
       # try to umount nfs binding
       systemctl stop nfs-server
-      if ! umount -f /srv/nfs/private > /dev/null; then
-        blue /srv/nfs/private is busy, trying to kill processes...
+      if ! umount -f $PRIV_NFS > /dev/null; then
+        blue $PRIV_NFS is busy, trying to kill processes...
         kill_processes
 
         # retry after killing processes
-        if ! umount -f /srv/nfs/private > /dev/null; then
+        if ! umount -f $PRIV_NFS > /dev/null; then
           curl https://ntfy.sh/$PRIV_NTFY -H 'Priority: high' -d "Failed to umount priv nfs, need user intervention"	  
           systemctl start nfs-server
           exit 1
         else
-          blue Successfully killed and unmounted /srv/nfs/private
+          blue Successfully killed and unmounted $PRIV_NFS
         fi
       fi
       # restart nfs
